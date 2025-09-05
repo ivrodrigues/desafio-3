@@ -43,33 +43,41 @@ func main() {
 	})
 
 	createOrderUseCase := NewCreateOrderUseCase(db, eventDispatcher)
+	listOrdersUseCase := NewListOrdersUseCase(db)
 
 	webserver := webserver.NewWebServer(configs.WebServerPort)
 	webOrderHandler := NewWebOrderHandler(db, eventDispatcher)
 	webserver.AddHandler("/order", webOrderHandler.Create)
+	webserver.AddHandler("/orders", webOrderHandler.List)
+
 	fmt.Println("Starting web server on port", configs.WebServerPort)
 	go webserver.Start()
 
-	grpcServer := grpc.NewServer()
-	createOrderService := service.NewOrderService(*createOrderUseCase)
-	pb.RegisterOrderServiceServer(grpcServer, createOrderService)
-	reflection.Register(grpcServer)
-
-	fmt.Println("Starting gRPC server on port", configs.GRPCServerPort)
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", configs.GRPCServerPort))
-	if err != nil {
-		panic(err)
-	}
-	go grpcServer.Serve(lis)
-
 	srv := graphql_handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{
 		CreateOrderUseCase: *createOrderUseCase,
+		ListOrderUseCase:   *listOrdersUseCase,
 	}}))
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
 
 	fmt.Println("Starting GraphQL server on port", configs.GraphQLServerPort)
-	http.ListenAndServe(":"+configs.GraphQLServerPort, nil)
+	go func() {
+		http.ListenAndServe(":"+configs.GraphQLServerPort, nil)
+	}()
+
+	grpcServer := grpc.NewServer()
+	orderService := service.NewOrderService(*createOrderUseCase, *listOrdersUseCase)
+	pb.RegisterOrderServiceServer(grpcServer, orderService)
+	reflection.Register(grpcServer)
+
+	fmt.Println("Starting gRPC server on port", configs.GRPCServerPort)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", configs.GRPCServerPort))
+	if err != nil {
+		panic(fmt.Errorf("could not listen to port %s: %w", configs.GRPCServerPort, err))
+	}
+	if err := grpcServer.Serve(lis); err != nil {
+		panic(fmt.Errorf("could not serve gRPC: %w", err))
+	}
 }
 
 func getRabbitMQChannel() *amqp.Channel {

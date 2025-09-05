@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ivrodrigues/desafio-3/internal/infra/graph/model"
 	"github.com/ivrodrigues/desafio-3/internal/usecase"
@@ -30,7 +31,36 @@ func (r *mutationResolver) CreateOrder(ctx context.Context, input *model.OrderIn
 	}, nil
 }
 
+// Orders is the resolver for the orders field.
+func (r *queryResolver) Orders(ctx context.Context) ([]*model.Order, error) {
+	fmt.Print("AQUIII")
+	orders, err := r.ListOrderUseCase.Execute(ctx)
+
+	fmt.Printf("orders: %v", orders)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var outList []*model.Order
+	for _, o := range orders {
+		var out model.Order
+		out.ID = o.ID
+		out.Price = o.Price
+		out.Tax = o.Tax
+		out.FinalPrice = o.FinalPrice
+
+		outList = append(outList, &out)
+	}
+
+	return outList, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
+// Query returns QueryResolver implementation.
+func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
 type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }

@@ -8,4 +8,5 @@ import "github.com/ivrodrigues/desafio-3/internal/usecase"
 
 type Resolver struct {
 	CreateOrderUseCase usecase.CreateOrderUseCase
+	ListOrderUseCase   usecase.ListOrdersUseCase
 }
